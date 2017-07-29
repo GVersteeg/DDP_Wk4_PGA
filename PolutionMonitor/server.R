@@ -46,25 +46,24 @@ df_prep <-                                          ## Create DF_prep
 shinyServer(function(input, output) {
    
     # process user inputs from ui.R
-        df_day <- reactive({                                     ## create DF_day
-                df_prep %>%                                      ## using DF-prep to
+        df_day <- reactive({                                   ## create DF_day
+                df_prep %>%                                    ## using DF-prep to
                 filter(weekday == input$wkday, polutant == input$comp) %>%
                 group_by(time, station) %>%
-                summarize(avg = mean(ug_m3, na.rm = TRUE)) %>%   ## calc. avg waarde
-                arrange(time)                                    ## sort ascending
+                summarize(avg = mean(ug_m3, na.rm = TRUE)) %>% ## calc. avg waarde
+                arrange(time)                                  ## sort ascending
         })
         
         output$dayPlot <- renderPlot({
                 
      # draw the plot with the selected day
         h <- ggplot(df_day(), 
-                    aes(x=time, y=avg, colour=station))              ## setup graphic object
+                    aes(x=time, y=avg, colour=station))        ## add graph obj.
         h + geom_point() +
-                geom_smooth(span=0.2,se=FALSE) +                   ## plot a trendline
-                scale_x_time(name="Daily hour") +                  ## label X-ticks
-                ylab("Polution level (ug/m3)") +                   ## label Y-axis
-                ggtitle("Daily polution levels The Hague")         ## title plot
+                geom_smooth(span=0.2,se=FALSE) +               ## plot trendline
+                scale_x_time(name="Daily hour") +              ## label X-ticks
+                ylab("Average polution level (ug/m3)") +       ## label Y-axis
+                ggtitle("Polution levels during averaged weekday (the Hague)")
         
   })
-  
 })
