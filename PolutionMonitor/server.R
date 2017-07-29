@@ -21,44 +21,49 @@ library(hms)
 # the "de Rebecquestraat" in The Hague. One of the observations is the
 # "air quality index" (dubbed: aqi), that we will predict using the value of
 # the observed polution levels.
-df_load <- tbl_df(read.csv2("./data/Export_RS.csv"))
-df <- df_load %>%                                 ## Create df
-        mutate(comp = as.factor(component)) %>%   ## as factor
-        rename(obs = waarde) %>%                  ## rename to english
-        rename(aqi = LKI) %>%                     ## rename to english
-        mutate(dt = as.POSIXct(strptime(tijdstip,
-                "%Y-%m-%d %H"))) %>%        ## add datetime column
-        mutate(day = as.POSIXct(strptime(tijdstip,
-                "%Y-%m-%d"))) %>%                 ## add date column
-        mutate(hrs = as.numeric(format(dt,
-                "%H"))) %>%                       ## add hours column
-        mutate(ym = as.factor(paste(              ## add yr-mon col.
-                format(dt, "%Y"), 
-                format(dt, "%m"),
-                sep="-"))) %>%    
-#        filter(ym == "2016-03") %>%               ## select the period
-        select(dt, day, hrs, comp, obs, aqi)    ## relevant cols
+df_AVK <- tbl_df(read.csv2("./data/Export_AVK.csv"))
+df_BL <- tbl_df(read.csv2("./data/Export_BL.csv"))
+df_RS <- tbl_df(read.csv2("./data/Export_RS.csv"))
+df_RIVM <- bind_rows(df_AVK, df_BL, df_RS)          ## concatenate stations
+df_RIVM$locatie <- sub("Den Haag-","", 
+                       df_RIVM$locatie)             ## Skip 'Den Haag-' part
+
+df_prep <-                                          ## Create DF_prep
+        df_RIVM %>%                                 ## using DF-RIVM to filter
+        rename(ug_m3 = waarde) %>%                  ## rename "waarde"
+        mutate(polutant = as.factor(component)) %>% ## rename & set to factor
+        mutate(station = as.factor(locatie)) %>%    ## set to format: factor
+        mutate(datetime = as.POSIXct(strptime(tijdstip,
+                        "%Y-%m-%d %H:%M:%S"))) %>%  ## add datetime column
+        mutate(date = as.Date(strptime(tijdstip, 
+                        "%Y-%m-%d"))) %>%           ## add date column
+        mutate(weekday = format(date, "%A")) %>%    ## add weekday column
+        mutate(time = as.hms(datetime)) %>%         ## add time column
+        select(date, time, weekday, station,
+               polutant, ug_m3)                     ## select relevant cols
 
 # Define server logic required to draw a daily polution levels plot
 shinyServer(function(input, output) {
    
-  output$dayPlot <- renderPlot({
-    
     # process user inputs from ui.R
-        dat <- as.POSIXct(strptime(input$date,
-                   "%Y-%m-%d")) 
-        cmp <- input$comp
-#        dfs <- filter(df, comp == cmp & day == dat)
-        dfs <- filter(df, comp == cmp)
-        fit <- lm(aqi~obs, data=dfs)
-        pred = predict(fit)
-        dfc <- cbind(dfs, pred) 
-        dfg <- gather(dfc, `obs`, `aqi`, `pred`, key="type", value="lvl")
-        dfg$type <- as.factor(dfg$type)
+        df_day <- reactive({                                     ## create DF_day
+                df_prep %>%                                      ## using DF-prep to
+                filter(weekday == input$wkday, polutant == input$comp) %>%
+                group_by(time, station) %>%
+                summarize(avg = mean(ug_m3, na.rm = TRUE)) %>%   ## calc. avg waarde
+                arrange(time)                                    ## sort ascending
+        })
         
-    # draw the plot with the selected day
-    ggplot(dfg, aes(hrs, lvl)) + geom_smooth()
-    ggplot(dfg, aes(hrs, lvl)) + geom_point(aes(colour=type))
+        output$dayPlot <- renderPlot({
+                
+     # draw the plot with the selected day
+        h <- ggplot(df_day(), 
+                    aes(x=time, y=avg, colour=station))              ## setup graphic object
+        h + geom_point() +
+                geom_smooth(span=0.2,se=FALSE) +                   ## plot a trendline
+                scale_x_time(name="Daily hour") +                  ## label X-ticks
+                ylab("Polution level (ug/m3)") +                   ## label Y-axis
+                ggtitle("Daily polution levels The Hague")         ## title plot
         
   })
   

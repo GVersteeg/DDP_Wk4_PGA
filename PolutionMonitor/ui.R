@@ -16,19 +16,23 @@ shinyUI(fluidPage(
   # Sidebar with two inputs (component & date) 
   sidebarLayout(
     sidebarPanel(
-       dateInput("date",
-                   "Select a date:",
-                   min = "2016-03-01",
-                   max = "2016-03-31",
-                   value = "2016-03-01"),
-       radioButtons("comp",
-                 "Select a poluttant:",
-                 c("NO2" = "NO2",
-                 "NO" = "NO",
-                 "O3" = "O3",
-                 "PM10" = "PM10",
-                 "PM25" = "PM25")
-    )),
+            radioButtons("wkday",
+                         "Select a weekday:",
+                         c("Monday" = "Monday",
+                           "Tuesday" = "Tuesday",
+                           "Wednesday" = "Wednesday",
+                           "Thursday" = "Thursday",
+                           "Friday" = "Friday",
+                           "Saturday" = "Saturday",
+                           "Sunday" = "Sunday")),
+            radioButtons("comp",
+                         "Select a poluttant:",
+                         c("NO2" = "NO2",
+                           "NO" = "NO",
+                           "O3" = "O3",
+                           "PM10" = "PM10",
+                           "PM25" = "PM25"))
+    ),
     
     # Show a plot of the generated distribution
     mainPanel(
