@@ -1,33 +1,38 @@
 #
-# This is the user-interface definition of a Shiny web application. You can
-# run the application by clicking 'Run App' above.
-#
-# Find out more about building applications with Shiny here:
-# 
-#    http://shiny.rstudio.com/
+# This is the user-interface definition of the Shiny web application for the 
+# Air Polution Monitor (APM) within The Hague (the Netherlands). 
+# This monitor is build for the peer graded assignment of Coursera's
+# Developing Data Products Course Assignment.
 #
 
 library(shiny)
 
-# Define UI for application that draws a histogram
+# Define UI for APM application
 shinyUI(fluidPage(
   
   # Application title
-  titlePanel("Old Faithful Geyser Data"),
+  titlePanel("Air Polution Monitor"),
   
-  # Sidebar with a slider input for number of bins 
+  # Sidebar with two inputs (component & date) 
   sidebarLayout(
     sidebarPanel(
-       sliderInput("bins",
-                   "Number of bins:",
-                   min = 1,
-                   max = 50,
-                   value = 30)
-    ),
+       dateInput("date",
+                   "Select a date:",
+                   min = "2016-03-01",
+                   max = "2016-03-31",
+                   value = "2016-03-01"),
+       radioButtons("comp",
+                 "Select a poluttant:",
+                 c("NO2" = "NO2",
+                 "NO" = "NO",
+                 "O3" = "O3",
+                 "PM10" = "PM10",
+                 "PM25" = "PM25")
+    )),
     
     # Show a plot of the generated distribution
     mainPanel(
-       plotOutput("distPlot")
+       plotOutput("dayPlot")
     )
   )
 ))

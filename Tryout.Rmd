@@ -1,0 +1,108 @@
+---
+title: "Tryout. Daily polution patterns"
+author: "Gerrit Versteeg"
+date: "July 29, 2017"
+output:
+  pdf_document: default
+  html_document:
+    keep_md: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Synopsis
+In the report we research the daily air polution patterns at three RIVM measuring stations located in the Hague (Amsterdamse Veerkade, Bleriotlaat en Rebecquestraat).
+
+As to the daily polution pattern for each averaged weekday a clear maximum is visible for the morning traffic rush, but the peek for the evening traffic rush is not detectable. The reason for this is yet unclear.   
+
+
+## Data Processing
+### Loading the data
+The data for this research is derived from: https://www.luchtmeetnet.nl/download
+by selecting each of the four stations in The Hague (the Netherlands).
+The resulting csv-files have been stored in the subdirectory 'data' of the working directory.
+
+Export_AVK.csv (312 kB) - Amsterdamse Veerkade
+Export_BL.csv  (353 kB) - Bleriotlaan
+Export_RS.csv  (468 kB) - Rebecquestraat
+
+```{r loading,ECHO = TRUE}
+library("tidyr", warn.conflicts=FALSE)          ## load tidyr silently
+library("dplyr", warn.conflicts=FALSE)          ## load dplyr silently
+library("ggplot2", warn.conflicts=FALSE)        ## load ggplot2 silently
+library("lubridate", warn.conflicts=FALSE)      ## load lubridate silently
+library("hms", warn.conflicts=FALSE)      ## load lubridate silently
+
+setwd("./PolutionMonitor")
+dateDownloaded <- date()                        ## register date download
+DF_AVK <- tbl_df(read.csv2("./data/Export_AVK.csv"))
+DF_BL <- tbl_df(read.csv2("./data/Export_BL.csv"))
+DF_RS <- tbl_df(read.csv2("./data/Export_RS.csv"))
+DF_RIVM <- bind_rows(DF_AVK, DF_BL, DF_RS)      ## concatenate station data
+DF_RIVM                                         ## take a peek
+```
+
+The 'coercion'-warnings tell us that there are differences in the levels between the three stations. The files contain:
+
+* Tijdstip      : Indication of date-time (hour) of measurement (e.g. 03:00:00 indicates the averaged measurements averaged over 02:00:01 until 03:00:00)
+* Locatie       : Location: name of the measurement station
+* Component     : Name of polutant
+* Waarde        : Value: observed polutant levels in ug/m3 (hourly average)
+* LKI           : Air Quality Index; ranging from 1 to 11 (1 = low air polution)
+
+For more information: https://www.luchtmeetnet.nl/uitleg#
+
+
+### Preprocessing the data
+Not all stations measure polutants at the same moments in time and not all stations measure the same polutants.
+
+```{r Preprocessing,ECHO=TRUE}
+# gmm <- intersect(levels(DF_AVK$tijdstip),           ## vul gmm met de gemeen-
+#               intersect(levels(DF_BL$tijdstip),     ## schappelijke meetmomenten
+#                 levels(DF_RS$tijdstip)))            ## in alle drie meetstations
+# 
+# gcp <- intersect(levels(DF_AVK$component),          ## vul gcp met de gemeen-
+#               intersect(levels(DF_BL$component),    ## schappelijke indicatoren
+#                 levels(DF_RS$component)))           ## in alle drie meetstations
+DF_RIVM$locatie <- sub("Den Haag-","", 
+                DF_RIVM$locatie)            ## Skip 'Den Haag-' part
+DF_prep <-                                          ## Create DF_prep
+        DF_RIVM %>%                                 ## using DF-RIVM to filter
+#        filter(tijdstip %in% gmm) %>%              ## only common dates
+#        filter(indicator %in% gcp) %>%             ## only common indicators
+        rename(ug_m3 = waarde) %>%                  ## rename "waarde"
+        mutate(polutant = as.factor(component)) %>% ## rename & set to factor
+        mutate(station = as.factor(locatie)) %>%    ## set to format: factor
+        mutate(datetime = as.POSIXct(strptime(tijdstip,
+                "%Y-%m-%d %H:%M:%S"))) %>%          ## add datetime column
+        mutate(date = as.Date(strptime(tijdstip, 
+                "%Y-%m-%d"))) %>%                   ## add date column
+        mutate(weekday = format(date, "%A")) %>%     ## add weekday column
+        mutate(time = as.hms(datetime)) %>%     ## add time column
+        select(date, time, weekday, station,
+               polutant, ug_m3)                     ## select relevant cols
+```
+
+### Plotting the indicator patterns during the day
+
+```{r day-plot, ECHO=TRUE}
+in_pol <- "NO2"
+in_weekday <- "Monday"
+DF_day <-                                                ## create DF_month
+        DF_prep %>%                                      ## using DF-prep to
+        filter(weekday == in_weekday, polutant == in_pol) %>%
+        group_by(time, station) %>%
+        summarize(avg = mean(ug_m3, na.rm = TRUE)) %>%   ## calc. avg waarde
+        arrange(time)                                    ## sort ascending
+
+h <- ggplot(DF_day, 
+        aes(x=time, y=avg, colour=station))              ## setup graphic object
+h + geom_point() +
+      geom_smooth(span=0.2,se=FALSE) +                   ## plot a trendline
+      scale_x_time(name="Daily hour") +                  ## label X-ticks
+      ylab("Polution level (ug/m3)") +                   ## label Y-axis
+      ggtitle("Daily polution levels The Hague")         ## title plot
+```
+
