@@ -1,0 +1,85 @@
+---
+title: "The APM Webapp"
+author: "Gerrit Versteeg"
+date: "30 July 2017"
+output: ioslides_presentation
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## Introduction of the APM
+The APM webapp enables you to analyze the daily air polution patterns at three measuring stations (exploited by an organization called "RIVM"), located in the Hague (the Netherlands). The three locations are Amsterdamse Veerkade, Bleriotlaan en Rebecquestraat. The data for this research is retreived from <https://www.luchtmeetnet.nl/download>.
+
+The user of the Webapp can select a specific polutant and weekday. The Webapp will then calculate the averaged polution levels in ug/m3 over all measurements taken during the period 2015-2016 for that given polutant and weekday. The resulting plot shows the daily polution pattern, using hourly levels and a loess smoother.
+
+All data and coding is available at [Github](https://github.com/GVersteeg/DDP_Wk4_PGA).
+
+## Data Processing
+The data for this research is retrieved in the form of a csv-file with measurements for each of the stations. These csv-files are merged into one dataframe.
+
+```{r loading,ECHO = FALSE, warning=FALSE}
+library("tidyr", warn.conflicts=FALSE)     ## load tidyr silently
+library("dplyr", warn.conflicts=FALSE)     ## load dplyr silently
+library("ggplot2", warn.conflicts=FALSE)   ## load ggplot2 silently
+library("lubridate", warn.conflicts=FALSE) ## load lubridate silently
+library("hms", warn.conflicts=FALSE)       ## load hms silently
+
+setwd("./PolutionMonitor")
+DF_AVK <- tbl_df(read.csv2("./data/Export_AVK.csv"))
+DF_BL <- tbl_df(read.csv2("./data/Export_BL.csv"))
+DF_RS <- tbl_df(read.csv2("./data/Export_RS.csv"))
+DF_RIVM <- bind_rows(DF_AVK, DF_BL, DF_RS) ## concatenate station data
+```
+
+```{r Peek1,ECHO = TRUE, comment=""}
+str(DF_RIVM)                            ## take a peek
+```
+
+## Processing the data
+The data is pre-processed in such a fashion that the resulting dataframe can easily be used by the Webapp for calculating the averaged polution levels during a certain weekday.
+```{r Preprocessing,ECHO=FALSE}
+DF_RIVM$locatie <- sub("Den Haag-","", 
+                DF_RIVM$locatie)               ## Skip 'Den Haag-'
+DF_prep <-                                     ## Create DF_prep
+   DF_RIVM %>%                                 ## using DF-RIVM to filter
+   rename(ug_m3 = waarde) %>%                  ## rename "waarde"
+   mutate(polutant = as.factor(component)) %>% ## rename & set to factor
+   mutate(station = as.factor(locatie)) %>%    ## set to format: factor
+   mutate(datetime = as.POSIXct(strptime(tijdstip,
+                "%Y-%m-%d %H:%M:%S"))) %>%     ## add datetime column
+   mutate(date = as.Date(strptime(tijdstip, 
+                "%Y-%m-%d"))) %>%              ## add date column
+   mutate(weekday = format(date, "%A")) %>%    ## add weekday column
+   mutate(time = as.hms(datetime)) %>%         ## add time column
+   select(date, time, weekday, station,
+               polutant, ug_m3)                ## select relevant cols
+```
+
+```{r Peek2, ECHO=TRUE, comment=""}
+DF_prep
+```
+
+## Example plot (NO2, average Monday)
+
+```{r day-plot, ECHO=FALSE, warning=FALSE, message=FALSE}
+in_pol <- "NO2"
+in_weekday <- "Monday"
+DF_day <-                               ## create DF_month
+        DF_prep %>%                     ## using DF-prep to
+        filter(weekday == in_weekday, polutant == in_pol) %>%
+        group_by(time, station) %>%
+        summarize(avg = mean(ug_m3, 
+                na.rm = TRUE)) %>%      ## calc. avg waarde
+        arrange(time)                   ## sort ascending
+
+h <- ggplot(DF_day, 
+        aes(x=time, y=avg, colour=station))  ## setup graphic object
+h + geom_point() +
+      geom_smooth(span=0.2,se=FALSE) +       ## plot a trendline
+      scale_x_time(name="Daily hour") +      ## label X-ticks
+      ylab("Polution level (ug/m3)") +       ## label Y-axis
+      ggtitle("Daily polution levels The Hague")
+```
+
